@@ -1,0 +1,769 @@
+<html>
+<head>
+  <meta http-equiv="Content-Type" content="text/html;charset=utf-8">
+  <title>Irish Weather</title>
+  <script src="https://d3js.org/d3.v5.min.js"></script>
+  <script src="https://unpkg.com/d3-simple-slider"></script>
+  <link rel="stylesheet" type="text/css" href="CSS/Map-CSS.css">
+  <link rel="stylesheet" href="https://use.fontawesome.com/releases/v5.6.0/css/all.css" integrity="sha384-aOkxzJ5uQz7WBObEZcHvV5JvRW3TUc2rNPA7pe3AwnsUohiw1Vj2Rgx2KSOkF5+h" crossorigin="anonymous">
+
+</head>
+
+<body>
+  <header><h1>Irish Weather</h1></header>
+
+  <div class="buttons">
+    <button onclick="temperature();"><i class="fas fa-thermometer-three-quarters"></i> Temperature</button>
+    <button onclick="humidityMap();"><i class="fas fa-tint"></i> Humidity</button>
+    <button onclick="wind();"><i class="fas fa-wind"></i> Wind Speed</button>
+  </div>
+
+
+  <div class="container">
+    <div id="legend1"></div>
+    <div id="map"></div>
+
+    <div id="sliderContainer">
+      <a id="setValue" href="#">Reset</a>
+      <div id="slider"></div>
+    </div>
+  </div>
+</body>
+<script>
+
+function start(){
+
+  //Load in data
+  d3.csv("data/data.csv").then(function(data){
+    data.forEach(function(d){
+
+      d.minTemperature = +d.minTemperature
+      d.maxTemperature = +d.maxTemperature
+      d.windSpeed = +d.windSpeed
+      d.humidity = +d.humidity
+
+    })
+
+    window.data = data
+    var proj = d3.geoMercator()
+
+    var width = 600
+    var height = 800
+    var path = d3.geoPath().projection(proj);
+
+    //Map svg
+    var svg = d3.select("#map").append("svg")
+    .attr("width", width)
+    .attr("height", height)
+    .attr("id", "svgMap")
+    .attr("class", "temperature")
+
+    //Tooltip for hovering over svgs
+    var tooltip = d3.select("body").append("div")
+    .attr("class", "tooltip")
+    .style("opacity", 0);
+
+    //Colour scale for the map
+    var colourScale = d3.scaleLinear().domain([d3.min(data, function(d){
+      return (parseInt(d.minTemperature) + parseInt(d.maxTemperature))/2
+    }),d3.max(data, function(d){
+      return (parseInt(d.minTemperature) + parseInt(d.maxTemperature))/2
+    })])
+    .range([d3.rgb("#ecf24f"), d3.rgb('#ff6d0c')]);
+
+    //Load in counties
+    d3.json("data/counties.json").then(function(json) {
+      console.log(json)
+
+      //Make graph function for the linecharts
+      function makeGraph(county, type, colour){
+
+        var elements = document.getElementsByClassName("specificGraph")
+        //Removing any already existing graphs so they don't suplicate
+        for(var i = 0; i < elements.length; i++)
+        {
+          elements[i].parentNode.removeChild(elements[i])
+        }
+        var height = 500
+        var width = 500
+        var padding = 50
+        var filteredData = data.filter(function (d) { return county === d.county })
+
+        // The number of datapoints
+        var n = 21;
+
+        // X scale will use the index of our data
+        var xScale = d3.scaleLinear()
+        .domain(d3.extent(filteredData, function(d){
+          return d.year
+        })) // input
+        .range([padding, width-padding]); // output
+
+        var yExtent = undefined
+        var text = undefined
+
+        //Setting the text for the graph based off the weather type
+        if(type === "wind")
+        {
+          text = "Wind (Meters per second)"
+          yExtent = d3.extent(filteredData, function(d){
+            return d.windSpeed
+          })
+        }
+
+        else if(type === "humidity")
+        {
+          text = "Humidity (Percentage)"
+          yExtent = d3.extent(filteredData, function(d){
+            return d.humidity
+          })
+        }
+
+        else {
+          text = "Temperature (Degrees celcius)"
+          yExtent = d3.extent(filteredData, function(d){
+            return (d.minTemperature + d.maxTemperature)/2
+          })
+        }
+
+        var yScale = d3.scaleLinear()
+        .domain(yExtent) // input
+        .range([height-padding, padding]); // output
+
+        var line = d3.line()
+        .x(function(d) { return xScale(d.year); }) // set the x values for the line generator
+        .y(function(d) {
+          if(type === "wind")
+          {
+            return yScale(d.windSpeed)
+          }
+
+          else if(type === "humidity")
+          {
+            return yScale(d.humidity)
+          }
+
+          else {
+            return yScale((d.minTemperature + d.maxTemperature)/2)
+          }
+        }) // set the y values for the line generator
+        .curve(d3.curveMonotoneX) // apply smoothing to the line
+
+        // Add the SVG to the page
+        var svg = d3.select("#map").append("svg")
+        .attr("width", width)
+        .attr("height", height)
+        .attr("class", "specificGraph")
+
+        //Call x axis
+        svg.append("g")
+        .attr("class", "x axis")
+        .attr("transform", "translate(0," + (height-padding) + ")")
+        .call(d3.axisBottom(xScale).tickFormat(d3.format("d"))); // Create an axis component with d3.axisBottom
+
+        svg.append("text")
+        .text("year")
+        .style("font-size", "20px")
+        .style("text-anchor", "middle")
+        .attr("x", width/2)
+        .attr("y", height-(padding/3))
+
+        svg.append("text")
+        .text(county)
+        .style("font-size", "20px")
+        .style("text-anchor", "middle")
+        .attr("x", width/2)
+        .attr("y", padding/3)
+
+        // Call the y axis in a group tag
+        svg.append("g")
+        .attr("class", "y axis")
+        .attr("transform", "translate(" + padding + ", 0)")
+        .call(d3.axisLeft(yScale)); // Create an axis component with d3.axisLeft
+
+        svg.append("text")
+        .text(text)
+        .style("font-size", "20px")
+        .style("text-anchor", "middle")
+        .attr("y", padding/4)
+        .attr("x", -height/2)
+        .attr("transform", "rotate(-90)")
+
+        var dataEnter = svg.selectAll("path").data(filteredData).enter()
+
+        dataEnter.append("path")
+        .attr("class", "line")
+        .attr("d", line(filteredData))
+        .attr("fill", "none")
+        .attr("stroke", colour)
+        .attr("stroke-width", 1.5)
+
+        dataEnter.append("circle")
+        .attr("class", "dot") // Assign a class for styling
+        .attr("cx", function(d) { return xScale(d.year) })
+        .attr("cy", function(d) {
+          if(type === "wind")
+          {
+            return yScale(d.windSpeed)
+          }
+
+          else if(type === "humidity")
+          {
+            return yScale(d.humidity)
+          }
+
+          else {
+            return yScale((d.minTemperature + d.maxTemperature)/2)
+          }
+        })
+        .attr("r", 5)
+        .attr("fill", colour)
+
+      }
+
+      var nodes = svg.selectAll("g.path")
+      .data(json.features)
+      .enter()
+      .append("g")
+      .attr("class", "node")
+      .attr("id", d => d.properties.id)
+      .append("path")
+      .style("fill", function(d) {
+
+        county = d.properties.id
+        averageT = 0
+
+        for(var i = 0; i < data.length; i++)
+        {
+          if(data[i].county === county && data[i].year === "2000")
+          {
+            averageT = (parseInt(data[i].minTemperature) + parseInt(data[i].maxTemperature))/2
+            break
+          }
+        }
+
+        return colourScale(averageT)
+      })
+      .attr("transform", "scale(40)translate(-450,-70)")
+      .attr("d", path)
+      .on("mouseover", function(d) {
+        tooltip.transition()
+        .duration(200)
+        .style("opacity", .9);
+        tooltip.html(d.properties.id)
+        .style("left", (d3.event.pageX) + "px")
+        .style("top", (d3.event.pageY - 28) + "px");
+
+      })
+      .on("mouseout", function(d) {
+        tooltip.transition()
+        .duration(500)
+        .style("opacity", 0);
+
+      })//Convert the hex colour to rgb
+      .on("click", function(d) {
+        var rgbToHex = function (rgb) {
+          var hex = Number(rgb).toString(16);
+          if (hex.length < 2) {
+            hex = "0" + hex;
+          }
+          return hex;
+        };
+        var fullColorHex = function(r,g,b) {
+          var red = rgbToHex(r);
+          var green = rgbToHex(g);
+          var blue = rgbToHex(b);
+          return red+green+blue;
+        };
+
+        var rgb = d3.select(this).style("fill").toString().replace("rgb", "").substring(1, d3.select(this).style("fill").length-1).split(", ")
+        makeGraph(d.properties.id, d3.select("#svgMap").attr("class"), "#" + fullColorHex(parseInt(rgb[0]), parseInt(rgb[1]), parseInt(rgb[2])))
+      });
+
+      window.nodes = nodes
+
+      makeLegend();
+      //Call for the makeSlider method
+      makeSlider(d3.min(data, function(d){
+        return d.year
+      }), d3.max(data, function(d){
+        return d.year
+      }))
+
+      //The slider for the map
+      function makeSlider(min, max){
+
+        var slider = d3.sliderHorizontal()
+        .default(max)
+        .min(min)
+        .max(max)
+        .step(1)
+        .tickFormat(d3.format("d"))
+        .width(450)
+        .displayValue(false)
+        .on("onchange", function(val){
+          nodes.transition().duration(300).style("fill", function(d) {
+
+            county = d.properties.id
+            averageT = 0
+
+            for(var i = 0; i < data.length; i++)
+            {
+              if(data[i].county === county && data[i].year ===  val.toString())
+              {
+                averageT = (parseInt(data[i].minTemperature) + parseInt(data[i].maxTemperature))/2
+                break
+              }
+            }
+
+            return colourScale(averageT)
+          })
+        })
+
+        window.slider = slider
+
+        var group = d3.select("div#slider").append("svg")
+        .attr("width", 500)
+        .attr("height", 100)
+        .append("g")
+        .attr("transform", "translate(30,30)");
+
+        group.call(slider);
+        d3.select("a#setValue").on("click", () => { slider.value(max); d3.event.preventDefault(); });
+
+      }
+
+    });
+  });
+}
+
+start()
+
+var nodes = undefined
+var data = undefined
+var slider = undefined
+
+//The map data and colour for temperature
+function temperature(){
+  var elements = document.getElementsByClassName("specificLegend")
+
+  for(var i = 0; i < elements.length; i++)
+  {
+    elements[i].parentNode.removeChild(elements[i])
+  }
+  var w = 290, h = 50;
+
+  var key = d3.select("#legend1")
+  .append("svg")
+  .attr("class", "specificLegend")
+  .attr("width", w)
+  .attr("height", h);
+
+  var legend = key.append("defs")
+  .append("svg:linearGradient")
+  .attr("id", "gradient")
+  .attr("x1", "0%")
+  .attr("y1", "100%")
+  .attr("x2", "100%")
+  .attr("y2", "100%")
+  .attr("spreadMethod", "pad");
+
+  legend.append("stop")
+  .attr("offset", "0%")
+  .attr("stop-color", "#ecf24f")
+  .attr("stop-opacity", 1);
+
+  legend.append("stop")
+  .attr("offset", "33%")
+  .attr("stop-color", "#efbc4f")
+  .attr("stop-opacity", 1);
+
+  legend.append("stop")
+  .attr("offset", "66%")
+  .attr("stop-color", "#ff6d0c")
+  .attr("stop-opacity", 1);
+
+  legend.append("stop")
+  .attr("offset", "100%")
+  .attr("stop-color", "#ff240c")
+  .attr("stop-opacity", 1);
+
+  key.append("rect")
+  .attr("width", w)
+  .attr("height", h - 30)
+  .style("fill", "url(#gradient)")
+  .attr("transform", "translate(0,10)");
+
+  var y = d3.scaleLinear()
+  .range([300, 0])
+  .domain([25, 0]);
+
+  var yAxis = d3.axisBottom()
+  .scale(y)
+  .ticks(5);
+
+  key.append("g")
+  .attr("class", "y axis")
+  .attr("transform", "translate(0,30)")
+  .call(yAxis)
+  .append("text")
+  .attr("transform", "rotate(-90)")
+  .attr("y", 0)
+  .attr("dy", ".71em")
+  .style("text-anchor", "end")
+  .text("axis title");
+
+  d3.select("#svgMap").attr("class", "temperature")
+  var colourScale = d3.scaleLinear().domain([d3.min(data, function(d){
+    return (parseInt(d.minTemperature) + parseInt(d.maxTemperature))/2
+  }),d3.max(data, function(d){
+    return (parseInt(d.minTemperature) + parseInt(d.maxTemperature))/2
+  })])
+  .range([d3.rgb("#ecf24f"), d3.rgb('#ff6d0c')]);
+
+  nodes.transition().duration(300).style("fill", function(d) {
+
+    county = d.properties.id
+    averageT = 0
+
+    for(var i = 0; i < data.length; i++)
+    {
+      if(data[i].county === county && data[i].year ===  slider.value().toString())
+      {
+        averageT = (parseInt(data[i].minTemperature) + parseInt(data[i].maxTemperature))/2
+        break
+      }
+    }
+
+    return colourScale(averageT)
+  })
+
+  //Slider onChange, data changes based off the year
+  slider.on("onchange", function(val){
+    nodes.transition().duration(300).style("fill", function(d) {
+
+
+      county = d.properties.id
+      averageT = 0
+
+      for(var i = 0; i < data.length; i++)
+      {
+        if(data[i].county === county && data[i].year ===  val.toString())
+        {
+          averageT = (parseInt(data[i].minTemperature) + parseInt(data[i].maxTemperature))/2
+          break
+        }
+      }
+
+      return colourScale(averageT)
+    })
+  })
+}
+
+//The map data and colour for wind speed
+function wind(){
+  var elements = document.getElementsByClassName("specificLegend")
+
+  for(var i = 0; i < elements.length; i++)
+  {
+    elements[i].parentNode.removeChild(elements[i])
+  }
+  var w = 290, h = 50;
+
+  var key = d3.select("#legend1")
+  .append("svg")
+  .attr("class", "specificLegend")
+  .attr("width", w)
+  .attr("height", h);
+
+  var legend = key.append("defs")
+  .append("svg:linearGradient")
+  .attr("id", "gradient")
+  .attr("x1", "0%")
+  .attr("y1", "100%")
+  .attr("x2", "100%")
+  .attr("y2", "100%")
+  .attr("spreadMethod", "pad");
+
+  legend.append("stop")
+  .attr("offset", "0%")
+  .attr("stop-color", "#c4c4c4")
+  .attr("stop-opacity", 1);
+
+  legend.append("stop")
+  .attr("offset", "33%")
+  .attr("stop-color", "#a0a0a0")
+  .attr("stop-opacity", 1);
+
+  legend.append("stop")
+  .attr("offset", "66%")
+  .attr("stop-color", "#939292")
+  .attr("stop-opacity", 1);
+
+  legend.append("stop")
+  .attr("offset", "100%")
+  .attr("stop-color", "#777777")
+  .attr("stop-opacity", 1);
+
+  key.append("rect")
+  .attr("width", w)
+  .attr("height", h - 30)
+  .style("fill", "url(#gradient)")
+  .attr("transform", "translate(0,10)");
+
+  var y = d3.scaleLinear()
+  .range([300, 0])
+  .domain([15, 0]);
+
+  var yAxis = d3.axisBottom()
+  .scale(y)
+  .ticks(5);
+
+  key.append("g")
+  .attr("class", "y axis")
+  .attr("transform", "translate(0,30)")
+  .call(yAxis)
+  .append("text")
+  .attr("transform", "rotate(-90)")
+  .attr("y", 0)
+  .attr("dy", ".71em")
+  .attr("class", "specificLegend")
+  .style("text-anchor", "end")
+  .text("axis title");
+
+  d3.select("#svgMap").attr("class", "wind")
+  var colourScale = d3.scaleLinear().domain([d3.min(data, function(d){
+    return parseFloat(d.windSpeed)
+  }),d3.max(data, function(d){
+    return parseFloat(d.windSpeed)
+  })])
+  .range([d3.rgb("#c4c4c4"), d3.rgb('#777777')]);
+
+  nodes.transition().duration(300).style("fill", function(d) {
+
+    county = d.properties.id
+    windSpeed = 0
+
+    for(var i = 0; i < data.length; i++)
+    {
+      if(data[i].county === county && data[i].year ===  slider.value().toString())
+      {
+        windSpeed = data[i].windSpeed
+        break
+      }
+    }
+
+    return colourScale(windSpeed)
+  })
+  //Slider onChange, data changes based off the year
+  slider.on("onchange", function(val){
+    nodes.transition().duration(300).style("fill", function(d) {
+
+
+      county = d.properties.id
+      windSpeed = 0
+
+      for(var i = 0; i < data.length; i++)
+      {
+        if(data[i].county === county && data[i].year ===  val.toString())
+        {
+          windSpeed = data[i].windSpeed
+          break
+        }
+      }
+
+      return colourScale(windSpeed)
+    })
+  })
+}
+
+//The map data and colour for humidity
+function humidityMap(){
+  var elements = document.getElementsByClassName("specificLegend")
+
+  for(var i = 0; i < elements.length; i++)
+  {
+    elements[i].parentNode.removeChild(elements[i])
+  }
+  var w = 290, h = 50;
+
+  var key = d3.select("#legend1")
+  .append("svg")
+  .attr("width", w)
+  .attr("class", "specificLegend")
+  .attr("height", h);
+
+  var legend = key.append("defs")
+  .append("svg:linearGradient")
+  .attr("id", "gradient")
+  .attr("x1", "0%")
+  .attr("y1", "100%")
+  .attr("x2", "100%")
+  .attr("y2", "100%")
+  .attr("spreadMethod", "pad");
+
+  legend.append("stop")
+  .attr("offset", "0%")
+  .attr("stop-color", "#66ddff")
+  .attr("stop-opacity", 1);
+
+  legend.append("stop")
+  .attr("offset", "33%")
+  .attr("stop-color", "#66aaff")
+  .attr("stop-opacity", 1);
+
+  legend.append("stop")
+  .attr("offset", "66%")
+  .attr("stop-color", "#4b7cdd")
+  .attr("stop-opacity", 1);
+
+  legend.append("stop")
+  .attr("offset", "100%")
+  .attr("stop-color", "#005dff")
+  .attr("stop-opacity", 1);
+
+  key.append("rect")
+  .attr("width", w)
+  .attr("height", h - 30)
+  .style("fill", "url(#gradient)")
+  .attr("transform", "translate(0,10)");
+
+  var y = d3.scaleLinear()
+  .range([300, 0])
+  .domain([100, 40]);
+
+  var yAxis = d3.axisBottom()
+  .scale(y)
+  .ticks(5);
+
+  key.append("g")
+  .attr("class", "y axis")
+  .attr("transform", "translate(0,30)")
+  .call(yAxis)
+  .append("text")
+  .attr("transform", "rotate(-90)")
+  .attr("y", 0)
+  .attr("dy", ".71em")
+  .style("text-anchor", "end")
+  .text("axis title");
+
+  d3.select("#svgMap").attr("class", "humidity")
+  var colourScale = d3.scaleLinear().domain([d3.min(data, function(d){
+    return parseFloat(d.humidity)
+  }),d3.max(data, function(d){
+    return parseFloat(d.humidity)
+  })])
+  .range([d3.rgb("#66ddff"), d3.rgb('#005dff')]);
+
+  nodes.transition().duration(300).style("fill", function(d) {
+
+    county = d.properties.id
+    humidity = 0
+
+    for(var i = 0; i < data.length; i++)
+    {
+      if(data[i].county === county && data[i].year ===  slider.value().toString())
+      {
+        humidity = data[i].humidity
+        break
+      }
+    }
+
+    return colourScale(humidity)
+  })
+
+  //Slider onChange, data changes based off the year
+  slider.on("onchange", function(val){
+    nodes.transition().duration(300).style("fill", function(d) {
+
+
+      county = d.properties.id
+      humidity = 0
+
+      for(var i = 0; i < data.length; i++)
+      {
+        if(data[i].county === county && data[i].year ===  val.toString())
+        {
+          humidity = data[i].humidity
+          break
+        }
+      }
+
+      return colourScale(humidity)
+    })
+  })
+}
+
+function makeLegend(){
+  var elements = document.getElementsByClassName("specificLegend")
+
+  for(var i = 0; i < elements.length; i++)
+  {
+    elements[i].parentNode.removeChild(elements[i])
+  }
+  var w = 290, h = 50;
+
+  var key = d3.select("#legend1")
+  .append("svg")
+  .attr("class", "specificLegend")
+  .attr("width", w)
+  .attr("height", h);
+
+  var legend = key.append("defs")
+  .append("svg:linearGradient")
+  .attr("id", "gradient")
+  .attr("x1", "0%")
+  .attr("y1", "100%")
+  .attr("x2", "100%")
+  .attr("y2", "100%")
+  .attr("spreadMethod", "pad");
+
+  legend.append("stop")
+  .attr("offset", "0%")
+  .attr("stop-color", "#ecf24f")
+  .attr("stop-opacity", 1);
+
+  legend.append("stop")
+  .attr("offset", "33%")
+  .attr("stop-color", "#efbc4f")
+  .attr("stop-opacity", 1);
+
+  legend.append("stop")
+  .attr("offset", "66%")
+  .attr("stop-color", "#ff6d0c")
+  .attr("stop-opacity", 1);
+
+  legend.append("stop")
+  .attr("offset", "100%")
+  .attr("stop-color", "#ff240c")
+  .attr("stop-opacity", 1);
+
+  key.append("rect")
+  .attr("width", w)
+  .attr("height", h - 30)
+  .style("fill", "url(#gradient)")
+  .attr("transform", "translate(0,10)");
+
+  var y = d3.scaleLinear()
+  .range([300, 0])
+  .domain([25, 0]);
+
+  var yAxis = d3.axisBottom()
+  .scale(y)
+  .ticks(5);
+
+  key.append("g")
+  .attr("class", "y axis")
+  .attr("transform", "translate(0,30)")
+  .call(yAxis)
+  .append("text")
+  .attr("transform", "rotate(-90)")
+  .attr("y", 0)
+  .attr("dy", ".71em")
+  .attr("class", "specificLegend")
+  .style("text-anchor", "end")
+  .text("axis title");
+}
+
+</script>
+</html>

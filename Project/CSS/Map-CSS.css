@@ -1,0 +1,94 @@
+#ireland path{
+  stroke: #ffff;
+  stroke-width: .25px;
+}
+
+#map{
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+.container {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+}
+
+.specificGraph {
+  padding-left: 80px;
+}
+
+header {
+  font-family: Arial, Helvetica, sans-serif;
+  font-size: 20px;
+  text-align: center;
+}
+
+body {
+  font-family: Arial, Helvetica, sans-serif;
+}
+
+div.tooltip {
+  position: absolute;
+  text-align: center;
+  width: 80px;
+  height: 14px;
+  padding: 2px;
+  font: 12px sans-serif;
+  background: #fff;
+  border: 0px;
+  pointer-events: none;
+}
+
+path:hover {
+  stroke: #7c7c7c;
+  stroke-width: .10px;
+}
+
+#sliderContainer {
+  display:flex;
+  flex-direction: column;
+}
+
+button {
+  background-color: #4CAF50;
+  border: none;
+  color: white;
+  padding: 20px;
+  text-align: center;
+  text-decoration: none;
+  font-size: 16px;
+  display: inline-block;
+
+}
+
+.buttons {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+button:hover {
+  background-color: #9cc693;
+}
+
+h1 {
+  color: #4CAF50;
+}
+
+#setValue {
+  background-color: #4CAF50;
+  border: none;
+  color: white;
+  padding: 20px;
+  text-align: center;
+  text-decoration: none;
+  font-size: 16px;
+  display: inline-block;
+}
+
+#setValue:hover {
+  background-color: #9cc693;
+}
